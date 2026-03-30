@@ -1,0 +1,18 @@
+# lang chain 4j 模型配置
+lang-chain-4j:
+  open-ai:
+    chat-model:
+      api-key: sk-cc70b22fa16e465e88dbbfece14b616d
+      model-name: gpt-4o
+      log-requests: true
+      log-responses: true
+      temperature: 0.7
+      max-tokens: 4096
+  community:
+    dash-scope:
+      chat-model:
+        model-name: qwen-max
+        api-key: sk-cc70b22fa16e465e88dbbfece14b616d
+
+
+# spring ai 配置

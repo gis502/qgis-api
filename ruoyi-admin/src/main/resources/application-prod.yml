@@ -1,0 +1,167 @@
+# Spring 配置
+spring:
+  # 数据源配置
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driverClassName: org.postgresql.Driver
+    druid:
+      # 主库数据源
+      master:
+        url: jdbc:postgresql://localhost:5432/yjzyk_xian?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai&postgis=true
+        username: postgres
+        password: postgres
+      # 从库数据源
+      slave:
+        # 从数据源开关/默认关闭
+        enabled: false
+        url:
+        username:
+        password:
+      # 初始连接数
+      initialSize: 5
+      # 最小连接池数量
+      minIdle: 10
+      # 最大连接池数量
+      maxActive: 20
+      # 配置获取连接等待超时的时间
+      maxWait: 60000
+      # 配置连接超时时间
+      connectTimeout: 30000
+      # 配置网络超时时间
+      socketTimeout: 60000
+      # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+      timeBetweenEvictionRunsMillis: 60000
+      # 配置一个连接在池中最小生存的时间，单位是毫秒
+      minEvictableIdleTimeMillis: 300000
+      # 配置一个连接在池中最大生存的时间，单位是毫秒
+      maxEvictableIdleTimeMillis: 900000
+      # 配置检测连接是否有效
+      validationQuery: SELECT version()
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      webStatFilter:
+        enabled: true
+      statViewServlet:
+        enabled: true
+        # 设置白名单，不填则允许所有访问
+        allow:
+        url-pattern: /druid/*
+        # 控制台管理用户名和密码
+        login-username: ruoyi
+        login-password: 123456
+      filter:
+        stat:
+          enabled: true
+          # 慢SQL记录
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
+
+  # 资源信息
+  messages:
+    # 国际化资源文件路径
+    basename: i18n/messages
+  # 文件上传
+  servlet:
+    multipart:
+      # 单个文件大小
+      max-file-size: 10MB
+      # 设置总上传的文件大小
+      max-request-size: 20MB
+  # 服务模块
+  devtools:
+    restart:
+      # 热部署开关
+      enabled: true
+  # redis 配置
+  redis:
+    # 地址
+    host: localhost
+    # 端口，默认为6379
+    port: 6379
+    # 数据库索引
+    database: 0
+    # 密码
+    password:
+    # 连接超时时间
+    timeout: 10s
+    lettuce:
+      pool:
+        # 连接池中的最小空闲连接
+        min-idle: 0
+        # 连接池中的最大空闲连接
+        max-idle: 8
+        # 连接池的最大数据库连接数
+        max-active: 8
+        # #连接池最大阻塞等待时间（使用负值表示没有限制）
+        max-wait: -1ms
+  # rabbitmq 配置
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: xiaodemo
+    password: 1234
+    #虚拟host 可以不设置,使用server默认host
+    virtual-host: /xiaodemos
+    #消息确认配置项
+    publisher-returns: true #确认消息已发送到队列(Queue)
+    publisher-confirm-type: correlated
+    listener: # 手动确认消息配置
+      simple:
+        acknowledge-mode: manual # 全局开启消费者手动确认
+        # 优化配置
+        concurrency: 1 # 最小消费者数
+        max-concurrency: 5 # 最大消费者数
+        prefetch: 1 # 每次从队列取1条消息，处理完再取（避免消息堆积）
+        retry:
+          enabled: true # 开启消费者重试（建议结合业务幂等性使用）
+          max-attempts: 3 # 最大重试次数
+          initial-interval: 1000ms # 第一次重试间隔
+          multiplier: 2 # 重试间隔倍数（第二次2s，第三次4s）
+# token配置
+token:
+  # 令牌自定义标识
+  header: Authorization
+  # 令牌密钥
+  secret: abcdefghijklmnopqrstuvwxyz
+  # 令牌有效期（默认30分钟）
+  expireTime: 30
+
+# MyBatis-plus配置
+mybatis-plus:
+  # 对应实体类的包路径（可选，开启后XML中可省略实体类全限定名）
+  type-aliases-package: com.ruoyi.**.domain
+  # Mapper XML映射文件的位置
+  mapper-locations:
+    - classpath:mapper/**/*.xml
+    - classpath:mapper/quartz/**/*.xml
+    - classpath:mapper/system/**/*.xml
+  # 全局配置
+  global-config:
+    db-config:
+      # 主键类型：AUTO(数据库自增)、ASSIGN_ID(雪花算法)
+      id-type: AUTO
+  # 配置项
+  configuration:
+    # 开启驼峰命名自动转换
+    # map-underscore-to-camel-case: true
+    # 关闭MyBatis的二级缓存
+    cache-enabled: false
+
+# 日志配置
+logging:
+  level:
+    com.ruoyi: debug
+    org.springframework: warn
+
+# 用户配置
+user:
+  password:
+    # 密码最大错误次数
+    maxRetryCount: 5
+    # 密码锁定时间（默认10分钟）
+    lockTime: 10
