@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 import com.ruoyi.common.constant.BaseConstants;
 import com.ruoyi.common.core.domain.model.AuthBody;
 import com.ruoyi.common.core.redis.RedisCache;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +41,7 @@ import static com.ruoyi.common.constant.BaseConstants.AUTH_USERNAME;
  */
 @Slf4j
 @RestController
+@Api(tags = "用户口令授权控制类")
 public class SysLoginController {
     @Autowired
     private SysLoginService loginService;
@@ -58,8 +61,8 @@ public class SysLoginController {
     @Autowired
     private RedisCache redisCache;
 
-
     // 开放给第三方用户，需要进行授权才能调用灾损评估接口
+    @ApiOperation("用户口令授权")
     @PostMapping("/api/open/auth")
     public AjaxResult auth(@RequestBody AuthBody authBody) {
         AjaxResult ajax = AjaxResult.success();
