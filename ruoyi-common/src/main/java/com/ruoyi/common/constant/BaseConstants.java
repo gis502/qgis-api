@@ -45,6 +45,8 @@ public class BaseConstants {
 
     // 功能常量
     public static final int TOKEN_EXPIRED = 30;     // token过期时间
+    public static final String AUTH_USERNAME = "authorize_user";   // 授权用户名
+    public static final String AUTH_PWD = "ApiOpen#123";
     public static final int NUM_VERTICES = 100;     // 椭圆边缘顶点数
     public static final String CITY_CODE = "511800"; // 西安市行政编码
     public static final Integer AUTOMATIC = 0; // 自动

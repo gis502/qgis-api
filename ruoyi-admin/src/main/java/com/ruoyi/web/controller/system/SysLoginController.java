@@ -29,6 +29,8 @@ import com.ruoyi.framework.web.service.SysPermissionService;
 import com.ruoyi.framework.web.service.TokenService;
 import com.ruoyi.system.service.ISysConfigService;
 import com.ruoyi.system.service.ISysMenuService;
+import static com.ruoyi.common.constant.BaseConstants.AUTH_PWD;
+import static com.ruoyi.common.constant.BaseConstants.AUTH_USERNAME;
 
 /**
  * 登录验证
@@ -60,8 +62,12 @@ public class SysLoginController {
     // 开放给第三方用户，需要进行授权才能调用灾损评估接口
     @PostMapping("/api/open/auth")
     public AjaxResult auth(@RequestBody AuthBody authBody) {
-
         AjaxResult ajax = AjaxResult.success();
+
+        // 空值
+        if (StringUtils.isEmpty(authBody.getUsername()) || StringUtils.isEmpty(authBody.getPassword())) {
+            return AjaxResult.error("授权账户不能为空！");
+        }
 
         // 查看redis中有无该用户信息，如果没有则再创建生成token，若有则使用redis中的token信息
         if (redisCache.hasKey(authBody.getUsername())) {
