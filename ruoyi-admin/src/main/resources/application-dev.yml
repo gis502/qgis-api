@@ -172,3 +172,10 @@ qiniu:
   access-key: mheaTe3xRCkChSjwfueGYzB32yi7yk2sj8pemjvF
   secret-key: XEbOv-KOyYiNsXKzkLUFsU96h0BZYaQ-AdNYOp8H
   offline: true # 是否离线
+
+# Swagger配置
+swagger:
+  # 是否开启swagger
+  enabled: true
+  # 请求前缀 /dev-api
+  pathMapping: /
