@@ -15,14 +15,14 @@ public class EqAssessmentDTO {
 
     private String event;   // 地震编码
     private String eqQueueId;   // 评估编码
-    private LocalDateTime eqTime;
-    private Double longitude;
-    private Double latitude;
-    private String eqAddr;
-    private Double eqMagnitude;
-    private Double eqDepth;
-    private String eqFullName;
-    private String eqName;
-    private String eqType;
+    private LocalDateTime eqTime; // 地震发生时间
+    private Double longitude; // 经度
+    private Double latitude; // 纬度
+    private String eqAddr; // 地址
+    private Double eqMagnitude; // 震级
+    private Double eqDepth; // 深度
+    private String eqFullName; // 震源名称
+    private String eqName; // 震源名称
+    private String eqType; // 震源类型
 
 }

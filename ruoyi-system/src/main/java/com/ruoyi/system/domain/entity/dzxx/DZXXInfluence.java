@@ -20,7 +20,7 @@ public class DZXXInfluence {
     @TableId(value = "id",type = IdType.ASSIGN_ID)
     private Long Id;
     @TableField("geom")
-    private Geometry geom;
+    private Geometry geom; // 椭圆面积
     @TableField("eqqueue_id")
     private String eqQueueId;
     @TableField("event")
@@ -34,13 +34,13 @@ public class DZXXInfluence {
     @TableField("type")
     private String type;
     @TableField("area")
-    private Double area;
+    private Double area;   // 烈度区面积
     @TableField("long_uranium")
     private Double longUranium;
     @TableField("short_uranium")
     private Double shortUranium;
     @TableField("direction")
-    private Double direction;
+    private Double direction; // 偏转角度
     @TableLogic
     @TableField("del_flag")
     private Integer delFlag = 0;

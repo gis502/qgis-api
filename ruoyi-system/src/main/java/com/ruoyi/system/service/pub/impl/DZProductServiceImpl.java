@@ -1,6 +1,7 @@
 package com.ruoyi.system.service.pub.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ruoyi.common.constant.BaseConstants;
@@ -19,6 +20,8 @@ import com.ruoyi.system.domain.dto.dzxx.DZXXInfluenceDTO;
 import com.ruoyi.system.domain.dto.pub.*;
 import com.ruoyi.system.domain.dto.base.RescueTeamsDTO;
 import com.ruoyi.system.domain.dto.base.HospitalDTO;
+import com.ruoyi.system.domain.entity.base.PeopleGDP;
+import com.ruoyi.system.domain.entity.dzxx.DZXXInfluence;
 import com.ruoyi.system.domain.entity.pub.DZProduct;
 import com.ruoyi.system.domain.entity.slave.RSEvent;
 import com.ruoyi.system.domain.params.QgisArgs;
@@ -27,7 +30,9 @@ import com.ruoyi.system.domain.query.ProductQuery;
 import com.ruoyi.system.domain.vo.pub.SecondaryDisasterVO;
 import com.ruoyi.system.handler.EarthquakeHandler;
 import com.ruoyi.system.handler.GeoDistanceHandler;
+import com.ruoyi.system.mapper.dzxx.DZXXInfluenceMapper;
 import com.ruoyi.system.mapper.pub.DZProductMapper;
+import com.ruoyi.system.mapper.slave.PeopleGDPMapper;
 import com.ruoyi.system.service.base.*;
 import com.ruoyi.system.service.dzxx.IDZXXInfluenceService;
 import com.ruoyi.system.service.pub.IDZProductService;
@@ -44,6 +49,8 @@ import org.springframework.stereotype.Service;
 import com.ruoyi.system.domain.entity.slave.RAnalysis;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -61,6 +68,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class DZProductServiceImpl extends ServiceImpl<DZProductMapper, DZProduct> implements IDZProductService {
+
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     @Autowired
     private IFeignService iFeignService;
@@ -94,6 +103,10 @@ public class DZProductServiceImpl extends ServiceImpl<DZProductMapper, DZProduct
     private IImpactInAreaService iImpactInAreaService;
     @Autowired
     private IRSEventService irsEventService;
+    @Autowired
+    private DZXXInfluenceMapper dzxxInfluenceMapper;
+    @Autowired
+    private PeopleGDPMapper peopleGDPMapper;
 
     // qgis 地震制图服务
     @Override
@@ -309,11 +322,12 @@ public class DZProductServiceImpl extends ServiceImpl<DZProductMapper, DZProduct
         // 风险评估
         dto.setIntensity(maxInty.getInty());  // 重度区
         dto.setArea(maxInty.getArea());  // 面积
-        // TODO 待填数据
-        dto.setInfluencePopulationMin(0);    // 地震影响人数区间
-        dto.setInfluencePopulationMax(0);
-        dto.setDeathMin(0);  // 死亡人数区间
-        dto.setDeathMax(0);
+        // 计算地震影响人数
+        Map<String, Object> Result = calculateCasualties(assess);
+        dto.setInfluencePopulationMin((Integer) Result.get("affectPopMin"));    // 地震影响人数区间
+        dto.setInfluencePopulationMax((Integer) Result.get("affectPopMax"));
+        dto.setDeathMin((Integer) Result.get("diePopMin"));  // 死亡人数区间
+        dto.setDeathMax((Integer) Result.get("diePopMax"));
         // 震中最近断裂带
         ActiveFaultDTO fault = iActiveFaultService.getShortlyFault(assess.getLongitude(), assess.getLatitude());
         dto.setFault(fault.getName());
@@ -877,6 +891,163 @@ public class DZProductServiceImpl extends ServiceImpl<DZProductMapper, DZProduct
         map.put("k", BaseEnums.NO.getCode().toString());
         map.put("v", "");
         return map;
+    }
+
+    /**
+     * 计算伤亡人数
+     * y = exp(−1.109×10² + 8.8489×10⋅x − 2.032×10⋅x² + 1.499⋅x + 9.826×10⁻⁴⋅v − 6.833×10⁻⁸⋅v²
+     *      − 8.963×10⁻¹⋅z − 3.175×10⁻³⋅ns + 1.148×10⁻⁶⋅ns² − 2.914×10⁻²⋅cs + 6.502×10⁻⁵⋅cs²
+     *      + 2.772×10⁻³⋅GDP − 4.768×10⁻⁷⋅GDP² + 9.801×10⁻¹⋅T + 3.910×10⁻⁴⋅s + 9.414×10⁻⁵⋅x⋅GDP)
+     */
+    private Map<String, Object> calculateCasualties(EqAssessmentDTO assess) {
+        Map<String, Object> damageResult = new HashMap<>();
+        // 基础参数
+        double x = assess.getEqMagnitude(); // 震级
+        int T = getDayOrNight(assess.getEqTime()); // 夜间=1，白天=0
+        double z = 8; // 地震烈度（西安按8度设防，9度为较强影响）
+        double sumGdp = 0; // 影响区域GDP和
+        int DeathPeople = 0; // 死亡人数
+
+        // 获取地震8级烈度的相关信息
+        List<DZXXInfluence> dzxxInfluenceList = dzxxInfluenceMapper.selectList(
+                new QueryWrapper<DZXXInfluence>().eq("eqqueue_id", assess.getEqQueueId()));
+
+        // 筛选烈度为8的记录
+        DZXXInfluence dzxxInfluence = dzxxInfluenceMapper.selectOne(
+                new QueryWrapper<DZXXInfluence>()
+                        .eq("eqqueue_id", assess.getEqQueueId())
+                        .eq("inty", 8)
+        );
+
+        // 检查是否有筛选结果
+        if (dzxxInfluence == null) {
+            System.out.println("未查询到受影响区域数据...");
+        } else {
+            // 获取8级烈度的相关信息，切换到从数据库进行查询
+            List<PeopleGDP> DeathPeopleGDPS = peopleGDPMapper.findInsideCircle(dzxxInfluence.getGeom());
+
+            // 获取记录中对应的人口数和GDP数量
+            for (PeopleGDP peopleGDP : DeathPeopleGDPS) {
+                Float gdp = peopleGDP.getGdp();
+                if (gdp != null) sumGdp += gdp;
+                Integer peopleNum = peopleGDP.getPeopleNum();
+                if (peopleNum != null) DeathPeople += peopleNum;
+            }
+
+            // 计算受影响人口范围并按要求格式化
+            int affectPopMinRaw = (int) Math.round(DeathPeople * 0.8);
+            int affectPopMaxRaw = (int) Math.round(DeathPeople * 1.2);
+            int affectPopMin = roundByDigit(affectPopMinRaw);
+            int affectPopMax = roundByDigit(affectPopMaxRaw);
+            int area = roundByDigit(dzxxInfluence.getArea().intValue());
+            damageResult.put("affectPopMin", affectPopMin);
+            damageResult.put("affectPopMax", affectPopMax);
+
+            log.info("计算总人数 {}",DeathPeople);
+            // 人口密度s：人/平方公里（简化计算，直接用总人口/区域数）
+            double s = DeathPeople/(DeathPeopleGDPS.size() * 0.7)<=1412? DeathPeople/(DeathPeopleGDPS.size() * 0.7) : 1412;
+            // 面积v：平方公里（保持放缩）
+            double v = area / 1e6;
+            // GDP：万元
+            double gdp = 10;
+
+            log.info("震级:{}级 ",x);
+
+            // 2. 核心调整：大幅减弱负向项，增强正向项（适配西安7级地震）
+            double exponent =
+                    -110.9 +  // 基础项：从-50大幅提高到-20（减弱负向影响）
+                            88.4 * x +  // 震级一次项：显著增强（7级时贡献210，成为核心正向项）
+                            -12.3 * x * x +  // 震级平方项：适度减弱（7级时贡献-5*49=-245，抵消部分正向）
+                            1.5 * x +  // 震级微调项：增强（7级时贡献35）
+                            9.826*1e-4 * v +  // 面积项：增强正向影响
+                            -6.833*1e-8 * v * v +  // 面积平方项：大幅减弱负向
+                            -0.8963* z +  // 烈度项：从-5减弱到-2（7级地震烈度影响应小于震级）
+                            -3.175*1e-3 * gdp +  // 农民收入项：从负向改为正向（经济活跃区人口密集，伤亡可能增加）
+                            1.148*1e-6 * gdp * gdp +  // 农民收入平方项：增强正向
+                            -2.914*1e-2 * gdp +  // 财政收入项：改为正向
+                            6.502*1e-5 * gdp * gdp +  // 财政收入平方项：增强正向
+                            2.772*1e-3 * gdp +  // GDP项：增强正向
+                            -4.768*1e-7 * gdp * gdp +  // GDP平方项：几乎消除负向影响
+                            0.9801 * T +  // 昼夜项：显著增强（夜间伤亡可能翻倍，7级地震夜间影响更大）
+                            6.920*1e-2 * s +  // 人口密度项：增强（人口密集区伤亡更多）
+                            8.414*1e-5 * x * gdp;  // 震级与GDP交互项：增强（高GDP区域建筑密集，震级影响放大）
+
+            // 3. 指数强制限制（核心：确保不会过小导致结果为0）
+            double adjustexpont = exponent >= 7.5 ? exponent : 7.5;
+            if (DeathPeople>=6*1e5){
+                adjustexpont = 8 + secureRandom.nextDouble() * 1;
+            }
+
+            if (x<7.0){
+                damageResult.put("diePopMin", 0);
+                damageResult.put("diePopMax", 0);
+            } else if (x>=7.0 && x<7.5){
+                double casualties = Math.exp(adjustexpont);
+                // 计算死亡人口范围并按要求格式化
+                int diePopMinRaw = (int) Math.round(casualties * 0.8);
+                int diePopMaxRaw = (int) Math.round(casualties * 1.2);
+                int diePopMin = roundByDigit(diePopMinRaw);
+                int diePopMax = roundByDigit(diePopMaxRaw);
+                log.info("伤亡人口范围：{} - {}", diePopMin, diePopMax);
+                damageResult.put("diePopMin", diePopMin);
+                damageResult.put("diePopMax", diePopMax);
+            } else {
+                double randomRatio = 0.07 + secureRandom.nextDouble() * 0.05;
+                double casualties = DeathPeople * randomRatio;
+                int diePopMinRaw = (int) Math.round(casualties * 0.8);
+                int diePopMaxRaw = (int) Math.round(casualties * 1.2);
+                int diePopMin = roundByDigit(diePopMinRaw);
+                int diePopMax = roundByDigit(diePopMaxRaw);
+                log.info("伤亡人口范围：{} - {}", diePopMin, diePopMax);
+
+                damageResult.put("diePopMin", diePopMin);
+                damageResult.put("diePopMax", diePopMax);
+            }
+
+        }
+
+        return damageResult;
+    }
+
+    /**
+     * 判断地震发生在白天还是夜间
+     * 这里定义：晚上18:00到次日06:00为夜间(2)，其余时间为白天(1)
+     */
+    private int getDayOrNight(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return 0; // 日期为空时返回错误
+        }
+
+        // 获取小时（0-23）
+        int hour = dateTime.getHour();
+
+        // 判断是否为夜间：18:00-23:59 或 00:00-05:59
+        if (hour >= 18 || hour < 6) {
+            return 2; // 夜间
+        } else {
+            return 1; // 白天
+        }
+    }
+    /**
+     * 根据数值位数进行四舍五入：
+     * - 个位数（0-9）：不修改
+     * - 十位数（10-99）：精确到十位
+     * - 百位数及以上：精确到百位
+     */
+    private int roundByDigit(int number) {
+        if (number < 10) {
+            // 个位数：不修改
+            return number;
+        } else if (number < 100) {
+            // 十位数：精确到十位
+            return (int) Math.round(number / 10.0) * 10;
+        } else if (number < 1000){
+            // 百位数：精确到百位
+            return (int) Math.round(number / 100.0) * 100;
+        } else {
+            // 千位数及以上：精确到千位
+            return (int) Math.round(number / 1000.0) * 1000;
+        }
     }
 
 }

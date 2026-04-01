@@ -56,7 +56,7 @@ public class DZEqQueueServiceImpl extends ServiceImpl<DZEqQueueMapper, DZEqQueue
         try {
             // 初始化评估
             initial(assess, BaseConstants.MANUAL);
-            // 地震影响场评估
+            // 地震影响场评估 5s
             idzxxInfluenceService.handle(assess);
             updated(assess.getEvent(), assess.getEqQueueId(), BaseUtils.compute(1, 0), BaseEnums.CALCULATING.getCode());
             // 震中距评估
